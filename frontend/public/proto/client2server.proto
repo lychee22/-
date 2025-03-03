@@ -1,0 +1,176 @@
+syntax = "proto3";
+/*
+PC端提交和审核，请求的路径，http://localhost/edit
+用户端请求的路径，http://localhost/view
+
+普通用户，登录网页，直接发送get_news_req和heart_beat_req。第一期先不做实名注册。
+
+编辑端
+打开页面，首先是登录，分三种情况
+已知用户=》输入密码直接发送get_user_info_req，在http头Authorization携带签名信息。
+已知用户=》上一步登录失败，重新设置密码。
+未知用户注册=》同样发送验证码。
+
+--------------------------------------------------------------------------
+关于被签名的JWT的pyaload内容
+{
+  "user_id": "12345678910",//使用手机号
+  "iat":1740104677,//发送UTC时间戳
+  "exp":1740104777 //失效UTC时间戳,和iat必须在600s以内。即token有效期只有10分钟。签名超时时间配置{expiresIn: '10m'}
+}
+
+ */
+package client2server;
+enum RoleType{
+  EDITOR = 0;
+  AUDITOR = 1;
+}
+enum ErrorType{
+  OK = 0;
+  USER_NOT_EXIST = 1;
+  PASSWD_ERROR = 2;
+  PROTOCOL_MISMATCH = 3;
+  INTERNAL_ERROR = 4;
+  PERMISSION_NOT_ALLOWED = 5;
+  SQL_ERROR = 6;
+  REQ_DATA_ERROR = 7;
+  USER_ALREADY_EXIST = 8;//重复注册时，返回该错误码；
+  SEND_VERIFY_CODE_FIRST = 9;//验证码过期，或没有验证码请求就发送注册和重置密码时返回该错误码；
+}
+
+message Msg{
+  bytes loopback = 1;
+  Error error = 2;
+  User user = 3;
+  RawRequstInfo raw_requst_info = 4;
+  PostArticleReq post_article_req = 13;//提交文章请求
+  PostArticleRsp post_article_rsp = 14;//提交文章返回
+  GetPostedArticleReq get_posted_article_req = 5;//获取提交的文章请求
+  GetPostedArticleRsp get_posted_article_rsp = 6;//获取提交的文章返回
+  GetViewArticleReq get_view_article_req = 7;//获取待审核的文章
+  GetViewArticleRsp get_view_article_rsp = 8;
+  AuditArticleReq audit_article_req = 15;//审核请求
+  AuditArticleRsp audit_article_rsp = 16;
+  GetNewsReq get_news_req = 9;//获取新闻
+  GetNewsRsp get_news_rsp = 10;
+  HeartBeatReq heart_beat_req = 11;//定时上报信息，客户端心跳需放在120s以上。
+  HeartBeatRsp heart_beat_rsp = 12;
+
+  GetUserInfoReq get_user_info_req = 17;//做一个登录操作，签名信息写在Authorization中。
+  GetUserInfoRsp get_user_info_rsp = 18;
+  SendVerifyCodeReq send_verify_code_req = 21;
+  SendVerifyCodeRsp send_verify_code_rsp = 22;
+  ResetPasswordReq reset_password_req = 23;
+  ResetPasswordRsp reset_password_rsp = 24;
+  RegisterReq register_req = 19;
+  RegisterRsp register_rsp = 20;
+}
+
+message Error {
+  int32 error_code = 1;//ErrorType中定义的值。
+  string error_desc = 2;
+  string error_debug = 3;
+}
+message GetUserInfoReq{
+  string user_id = 1;
+}
+message GetUserInfoRsp{
+  User user = 1;
+}
+message SendVerifyCodeReq{
+  string phone_number = 1;
+}
+message SendVerifyCodeRsp{
+  bytes serverkey = 1;//后面重设密码的时候或者注册的时候需要原样带到服务器。
+  int32 wait_time_s = 2;//如果没有获取到等待重新发送验证码的时间。该数值为-1，表示服务器发送成功。
+}
+message ResetPasswordReq{
+  string user_id = 1;
+  string password_md5_encrypted = 2;//使用短信验证码对密码的md5进行加密。服务器只保存密码的md5值(hex编码)。使用aes128加密后再用base64编码。
+  bytes serverkey = 3;
+}
+message ResetPasswordRsp{
+}
+message RegisterReq{
+  User user = 1;
+  string password_md5_encrypted = 2;//使用短信验证码对密码的md5进行加密。服务器只保存密码的md5值。
+  bytes serverkey = 3;
+  string email = 4;
+}
+message RegisterRsp{
+}
+message User{
+  string username = 1;//昵称
+  string user_id = 2;//唯一标识ID，手机号。
+  string user_role = 3;//"editor|auditor",服务器决定，客户端不用携带
+  string authority = 4;//权限，"post_article|audit_article|add_editor"，数据库填充的信息。
+}
+message RawRequstInfo{
+  string url = 1;
+}
+message GetPostedArticleReq{
+  TimeInterval time_interval = 1;
+}
+message GetPostedArticleRsp{
+  repeated ArticleInfo article_list = 1;
+}
+message TimeInterval{
+  string start_time = 1;//时间都是类似于"2023-10-05T14:48:00.000Z"的格式。
+  string end_time = 2;
+}
+message ArticleInfo{
+  string article_id = 1;//第一次创建的文档不用携带，对保存的文档重新修订时保存服务器返回的。
+  string title = 2;
+  bytes content = 3;
+  string author = 4;//作者手机号
+  string create_time = 5;
+  string update_time = 6;
+  string status = 7;//'draft','posted','published','archived'
+  repeated string labels = 8;
+  string digest = 9;
+  string auditor = 10;//审核员
+}
+message GetViewArticleReq{
+  TimeInterval time_interval = 1;
+}
+message GetViewArticleRsp{
+  repeated ArticleInfo article_list = 1;
+}
+message GetNewsReq{
+  repeated string keywords = 1;
+  string last_article_time = 2;//上次获取的最后一篇文章的时间；
+}
+message GetNewsRsp{
+  repeated ArticleInfo article_list = 1;
+  string last_article_time = 2;//当前最新的文章时间；
+}
+
+message HeartBeatReq{
+  BrowseInfo browse_info = 1;
+}
+message BrowseInfo{
+  string article_id = 1;
+  uint32 browse_time = 2;
+}
+message HeartBeatRsp{
+  ControlClient control_client = 1;
+}
+message ControlClient{
+  bool remove_all_article = 1;
+  repeated string remove_article_id_list = 2;//删除一些误发布的或者违规的信息。
+}
+message PostArticleReq{
+  ArticleInfo article_info = 1;
+  string auditor_id = 2;//可选，指定审核人员，否则自动分配。方便做编辑管理,即每个审核人员管理一批编辑人员。
+}
+message PostArticleRsp{
+  string article_id = 1;
+}
+message AuditArticleReq{
+  string article_id = 1;
+  bool approved = 2;
+  string reason = 3;
+}
+message AuditArticleRsp{
+}
+

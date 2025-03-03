@@ -1,0 +1,60 @@
+.createWrap {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap:20px;
+
+    .ant-card-body{
+      box-sizing: border-box;
+      padding: 15px;
+    }
+}
+.createHead {
+  .ant-form-item{
+    padding: 0px 20px;
+    margin-bottom: 0px;
+  }
+}
+// .createHead {
+//     height: 80px;
+//     width: 80%;
+//     background-color: white;
+//     display: flex;
+//     align-items: center;
+// }
+
+.createContent {
+    flex: 1;
+}
+
+.page-title {
+    font-size: 24px;
+    margin-bottom: 20px;
+}
+
+.title-input-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.title-label {
+    width: 80px;
+    font-weight: bold;
+}
+/* src/App.css */
+.App {
+  text-align: center;
+}
+ 
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+}
+ 
